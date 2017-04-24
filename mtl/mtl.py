@@ -19,7 +19,7 @@ import pygwas_modules.plotting as gplt
 import pygwas_modules.result as res
 
 
-class MtmmLimix:
+class MTL:
     def __init__(self, mac_thres=0):
         self.mac_thres = mac_thres
         self.phenotypes = None
@@ -311,7 +311,7 @@ def run_by_environment_vars():
     # tcols1 = [int(x) for x in tcols1str.lstrip('[').rstrip(']').split(',')]
     # tcols2 = [int(x) for x in tcols2str.lstrip('[').rstrip(']').split(',')]
 
-    mt = MtmmLimix(int(macthres))
+    mt = MTL(int(macthres))
     mt.read_phenotype_col(tfile1, tcols1[jobid], tprefix1, sep=filesep)
     mt.read_phenotype_col(tfile2, tcols2[jobid], tprefix2, sep=filesep)
     mt.read_genotypes(snpsdb)
