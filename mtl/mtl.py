@@ -39,6 +39,7 @@ class MTL:
         with open(phenotype_filepath, 'r') as phenofile:
             hcols = phenofile.readline().strip().split(sep)
             p = []
+
             for l in phenofile:
                 dcols = l.strip().split(sep)
                 try:
@@ -179,12 +180,6 @@ class MTL:
         # p2 = (p2 - p2.min()) / (p2.max() - p2.min())
         # pheno_norm = np.concatenate((p1, p2), axis=1)
 
-        #log transform
-        # p1 = np.array(self.phenotypes[[0]].loc[self.iid]).astype(np.float64)
-        # p1 = np.log((p1 - p1.min()) + 0.1 * np.std(p1))
-        # p2 = np.array(self.phenotypes[[1]].loc[self.iid]).astype(np.float64)
-        # p2 = np.log((p2 - p2.min()) + 0.1 * np.std(p2))
-        # pheno_norm = np.concatenate((p1, p2), axis=1)
 
         #exp transform (does not converge)
 
@@ -319,19 +314,19 @@ def run_by_environment_vars():
 
 
 if __name__ == "__main__":
-    run_by_environment_vars()
+    # run_by_environment_vars()
 
-    # workdir = "/data/christian.goeschl/wb-gwas-plots/limix-run/"
-    # genotypedir = "/data/gwas/genotypes_for_pygwas/1.0.0/regmap_horton_et_al_2012"
-    #
-    # limtmm = MtmmLimix(mac_thres=10)
-    # i = 2
-    # j = 1
-    # limtmm.read_phenotype_col(os.path.join(workdir, "20170301_Zn_MS_RLd2.csv"), i, colprefix="c{:d}".format(i), sep=",")
-    # limtmm.read_phenotype_col(os.path.join(workdir, "20170301_Zn_MS_RLd2.csv"), j, colprefix="c{:d}".format(j), sep=",")
-    # # limtmm.write_phenotypes(os.path.join(workdir, "used_phenotypes_dbg_{}-{}.csv".format(i, j)))
-    # limtmm.read_genotypes(os.path.join(genotypedir, "all_chromosomes_binary.hdf5"))
-    # limtmm.do_qtl(os.path.join(workdir, "Ms-vs-Zn-mac10-ascombetrafo"))
+    workdir = "/data/christian.goeschl/mtmm"
+    genotypedir = "/data/gwas/genotypes_for_pygwas/1.0.0/regmap_horton_et_al_2012"
+
+    limtmm = MTL(mac_thres=10)
+    i = 1
+    j = 1
+    limtmm.read_phenotype_col(os.path.join(workdir, "bao_Std.txt"), i, colprefix="ctrl{:d}".format(i), sep="\t")
+    limtmm.read_phenotype_col(os.path.join(workdir, "bao_Cd+.txt"), j, colprefix="cd+{:d}".format(j), sep="\t")
+    # limtmm.write_phenotypes(os.path.join(workdir, "used_phenotypes_dbg_{}-{}.csv".format(i, j)))
+    limtmm.read_genotypes(os.path.join(genotypedir, "all_chromosomes_binary.hdf5"))
+    limtmm.do_qtl(os.path.join(workdir, "bao_ctrl_cd+"))
 
     # for i in range(3, 23):
     #     limtmm = MtmmLimix(mac_thres=5)
