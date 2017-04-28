@@ -3,7 +3,10 @@ import os
 import pandas as pd
 import scipy as sp
 
+from core.data_transform import DataTransform
+
 log = logging.getLogger('__name__')
+
 
 class Phenotype(object):
     def __init__(self):
@@ -26,70 +29,9 @@ class Phenotype(object):
     def transform(self, transform):
         self.__transform = transform
 
-    def log_transform(self):
-        for i in range(self.data.shape[1]):
-            p = self.data.iloc[:, i].values
-            p = sp.log((p - p.min()) + 0.1 * sp.std(p))
-            self.data.iloc[:, i] = p
-        self.transform = "log({})".format(self.transform)
+    # def feature_scaling(self):
 
-    def sqrt_transform(self):
-        for i in range(self.data.shape[1]):
-            p = self.data.iloc[:, i].values
-            p = sp.sqrt((p - p.min()) + 0.1 * sp.std(p))
-            self.data.iloc[:, i] = p
-        self.transform = "sqrt({})".format(self.transform)
 
-    def ascombe_transform(self):
-        for i in range(self.data.shape[1]):
-            p = self.data.iloc[:, i].values
-            p = 2.0 * sp.sqrt(p + 3.0 / 8.0)
-            self.data.iloc[:, i] = p
-        self.transform = "ascombe({})".format(self.transform)
-
-    def sqr_transform(self):
-        for i in range(self.data.shape[1]):
-            p = self.data.iloc[:, i].values
-            p = ((p - p.min())+0.1*p.std())
-            p = p*p
-            self.data.iloc[:, i] = p
-        self.transform = "sqr({})".format(self.transform)
-
-    def exp_transform(self):
-        for i in range(self.data.shape[1]):
-            p = self.data.iloc[:, i].values
-            p = sp.exp((p - p.min()) + 0.1 * p.std())
-            self.data.iloc[:, i] = p
-        self.transform = "exp({})".format(self.transform)
-
-    def box_cox_transform(self, lambda_range=(-2.0, 2.0), lambda_increment=0.1):
-        from scipy import stats
-        for i in range(self.data.shape[1]):
-            p = self.data.iloc[:, i].values
-            p = ((p - p.min())+0.1*p.std())
-
-        sw_pvals = []
-        lambdas = sp.arange(lambda_range[0], lambda_range[1] + lambda_increment, lambda_increment)
-        for l in lambdas:
-            if l == 0:
-                vs = sp.log(p)
-            else:
-                vs = ((p ** l) - 1) / l
-            r = stats.shapiro(vs)
-            if sp.isfinite(r[0]):
-                pval = r[1]
-            else:
-                pval = 0.0
-            sw_pvals.append(pval)
-        log.info(sw_pvals)
-        i = sp.argmax(sw_pvals)
-        l = lambdas[i]
-        if l == 0:
-            vs = sp.log(p)
-        else:
-            vs = ((p ** l) - 1) / l
-        self.transform = "box-cox({})".format(self.transform)
-        log.debug('optimal lambda was %0.1f' % l)
 
         #
         # p1 = np.array(self.phenotypes[[0]].loc[self.iid]).astype(np.float64)
@@ -132,9 +74,10 @@ class Phenotype(object):
 if __name__ == "__main__":
     # log = logging.getLogger()
     # log.basicConfig(level=log.INFO, format='%(asctime)s %(levelname)s: %(message)s')
-
     workdir = "/data/christian.goeschl/mtmm"
     pheno = Phenotype()
     pheno.read_csv_col(os.path.join(workdir, "bao_Std.txt"), colnr=1, colprefix="ctrl-{:d}".format(1), sep="\t")
     pheno.read_csv_col(os.path.join(workdir, "bao_Cd+.txt"), colnr=1, colprefix="ctrl-{:d}".format(1), sep="\t")
-    pheno.sqr_transform()
+    DataTransform.transform(pheno.data.values, 'most-normal')
+    pass
+    # pheno.sqr_transform()
