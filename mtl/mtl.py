@@ -8,7 +8,7 @@ import sys
 import time
 
 import h5py
-import limix.modules.qtl as qtl
+import limix.qtl as qtl
 import numpy as np
 import os
 import pandas as pd
@@ -61,7 +61,8 @@ class MTL:
                 pheno_acc_ids = list(set(self.phenotypes.index) & set(ids))
                 self.phenotypes = pd.concat([self.phenotypes.loc[pheno_acc_ids], data.loc[pheno_acc_ids]], axis=1)
                 sys.stdout.write("phenotype intersection is {} accessions.\n".format(len(pheno_acc_ids)))
-        self.phenotypes.sort_index(inplace=True);
+
+        self.phenotypes.sort_index(axis=0, inplace=True)
         return
 
     def write_phenotypes(self, path):
@@ -70,18 +71,33 @@ class MTL:
     def read_genotypes(self, genotype_filepath):
         sys.stdout.write("reading genotypes ... ")
         sys.stdout.flush()
-        genofile = h5py.File(genotype_filepath, 'r')
+        with h5py.File(genotype_filepath, 'r') as genofile:
+            geno_acc_ids = list(genofile["/accessions"].value)
+            geno_acc_idx = np.in1d(genofile['/accessions'], list(set(geno_acc_ids) & set(self.phenotypes.index)))
+            snps = genofile["/snps"][:, geno_acc_idx]
+            geno_acc_ids = np.array(geno_acc_ids)[geno_acc_idx]
 
-        pos = genofile['/positions'].value
-        snps = genofile["/snps"].value
-        geno_acc_ids = [x.decode() for x in genofile["/accessions"].value]
-        chr_regions = np.array(genofile['positions'].attrs.get('chr_regions'))
-        self.chr_names = genofile['positions'].attrs.get('chrs')
+            chr_names = genofile['positions'].attrs.get('chrs')
+            chr_regions = np.array(genofile['positions'].attrs.get('chr_regions'))
+            geno_chroms = []
+            for i, reg in enumerate(chr_regions):
+                geno_chroms.extend(np.repeat(chr_names[i], reg[1]-reg[0]))
+            pos = genofile['/positions'].value
         sys.stdout.write("ok.\n")
 
-        snps = pd.DataFrame(snps.T)
-        snps.index = geno_acc_ids
-        self.chromosomes = np.empty((snps.shape[1],)).astype(str)
+        macs = np.array(snps.sum(axis=1)).astype(int)
+        macs_th = (macs >= self.mac_thres) & (macs <= snps.shape[0]-self.mac_thres)
+        snps = snps[macs_th, :]
+        sys.stdout.write("removed {:d} snps because of MAC threshold {:d}. (Remaining snps: {:d}.)\n"
+                         .format(pos.shape[0]-snps.shape[0], self.mac_thres, snps.shape[1]))
+        pos = pos[macs_th]
+        geno_chroms = np.array(geno_chroms)[macs_th]
+
+        snps = pd.DataFrame(snps, index=pd.MultiIndex.from_arrays([geno_chroms, pos]), columns=geno_acc_ids)
+
+
+        # snps.index = pd.MultiIndex.from_arrays([geno_chroms, pos])
+        #geno_acc_ids
         for ix, reg in enumerate(chr_regions):
             self.chromosomes[reg[0]:reg[1]] = self.chr_names[ix]
 
@@ -93,12 +109,8 @@ class MTL:
         snps = np.array(snps.loc[self.iid])
         snpsshape = snps.shape
 
-        macs = np.array(snps.sum(axis=0)).astype(int)
-        macs_th = (macs >= self.mac_thres) & (macs <= snpsshape[0]-self.mac_thres)
 
         ts = snps[:, macs_th]
-        sys.stdout.write("removed {} snps because of MAC threshold {}.\n".format(snpsshape[1]-ts.shape[1],
-                                                                                 self.mac_thres))
         sys.stdout.write("creating kinship matrix ... ")
         sys.stdout.flush()
         start = time.time()
@@ -174,6 +186,8 @@ class MTL:
         return vals
 
     def do_qtl(self, outputdir, rnr=None):
+        pheno_norm = self.phenotypes.loc[self.iid].values
+
         # p1 = np.array(self.phenotypes[[0]].loc[self.iid]).astype(np.float64)
         # p1 = (p1 - p1.min()) / (p1.max() - p1.min())
         # p2 = np.array(self.phenotypes[[1]].loc[self.iid]).astype(np.float64)
@@ -201,11 +215,13 @@ class MTL:
         # pheno_norm = np.concatenate((p1, p2), axis=1)
 
         # ascombe transform (does not converge)
-        p1 = np.array(self.phenotypes[[0]].loc[self.iid]).astype(np.float64)
-        p1 = 2.0 * sp.sqrt(p1 + 3.0 / 8.0)
-        p2 = np.array(self.phenotypes[[1]].loc[self.iid]).astype(np.float64)
-        p2 = 2.0 * sp.sqrt(p2 + 3.0 / 8.0)
-        pheno_norm = np.concatenate((p1, p2), axis=1)
+        # p1 = np.array(self.phenotypes[[0]].loc[self.iid]).astype(np.float64)
+        # p1 = 2.0 * sp.sqrt(p1 + 3.0 / 8.0)
+        # p2 = np.array(self.phenotypes[[1]].loc[self.iid]).astype(np.float64)
+        # p2 = 2.0 * sp.sqrt(p2 + 3.0 / 8.0)
+        # pheno_norm = np.concatenate((p1, p2), axis=1)
+
+
 
         # QTL
         n_pheno = pheno_norm.shape[1]  # number of traits
@@ -224,9 +240,9 @@ class MTL:
         sys.stdout.write("calulating qtl ... \n")
         sys.stdout.flush()
         start = time.time()
-        pvalues_inter = qtl.test_interaction_lmm_kronecker(snps=self.ts_norm, phenos=pheno_norm, covs=covs, Acovs=Acovs,
+        pvalues_inter = qtl.qtl_test_interaction_lmm_kronecker(snps=self.ts_norm, phenos=pheno_norm, covs=covs, Acovs=Acovs,
                                                            Asnps0=Asnps0,
-                                                           Asnps1=Asnps1, K1r=K1r, trait_covar_type=covar_type)
+                                                           Asnps1=Asnps1, K1r=K1r)
         elapsed = time.time() - start
         sys.stdout.write("qtl finished. ({} s)\n".format(elapsed))
 
@@ -316,17 +332,19 @@ def run_by_environment_vars():
 if __name__ == "__main__":
     # run_by_environment_vars()
 
-    workdir = "/data/christian.goeschl/mtmm"
+    workdir = "/home/GMI/christian.goeschl/devel/pycharm/mtmm-limix-take"
     genotypedir = "/data/gwas/genotypes_for_pygwas/1.0.0/regmap_horton_et_al_2012"
 
     limtmm = MTL(mac_thres=10)
     i = 1
     j = 1
-    limtmm.read_phenotype_col(os.path.join(workdir, "bao_Std.txt"), i, colprefix="ctrl{:d}".format(i), sep="\t")
-    limtmm.read_phenotype_col(os.path.join(workdir, "bao_Cd+.txt"), j, colprefix="cd+{:d}".format(j), sep="\t")
+    # limtmm.read_phenotype_col(os.path.join(workdir, "bao_Std.txt"), i, colprefix="ctrl{:d}".format(i), sep="\t")
+    # limtmm.read_phenotype_col(os.path.join(workdir, "bao_Cd+.txt"), j, colprefix="cd+{:d}".format(j), sep="\t")
+    limtmm.read_phenotype_col(os.path.join(workdir, "LRD_IAAvsMock.csv"), i, colprefix="IAA{:d}".format(i), sep=",")
+    limtmm.read_phenotype_col(os.path.join(workdir, "LRD_IBAvsMock.csv"), j, colprefix="IBA{:d}".format(j), sep=",")
     # limtmm.write_phenotypes(os.path.join(workdir, "used_phenotypes_dbg_{}-{}.csv".format(i, j)))
     limtmm.read_genotypes(os.path.join(genotypedir, "all_chromosomes_binary.hdf5"))
-    limtmm.do_qtl(os.path.join(workdir, "bao_ctrl_cd+"))
+    limtmm.do_qtl(os.path.join(workdir, "IBA-vs-IAA-mtl-run"))
 
     # for i in range(3, 23):
     #     limtmm = MtmmLimix(mac_thres=5)

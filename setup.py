@@ -3,7 +3,7 @@ from distutils.core import setup
 setup(
     name='mtl',
     version='0.1.0',
-    packages=['mtl', 'mtl.pygwas_modules'],
+    packages=['mtl', 'mtl.pygwas_modules', 'mtl.core'],
     url='',
     license='',
     author='christian.goeschl',

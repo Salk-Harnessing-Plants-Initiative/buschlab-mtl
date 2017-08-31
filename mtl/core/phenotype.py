@@ -78,6 +78,6 @@ if __name__ == "__main__":
     pheno = Phenotype()
     pheno.read_csv_col(os.path.join(workdir, "bao_Std.txt"), colnr=1, colprefix="ctrl-{:d}".format(1), sep="\t")
     pheno.read_csv_col(os.path.join(workdir, "bao_Cd+.txt"), colnr=1, colprefix="ctrl-{:d}".format(1), sep="\t")
-    DataTransform.transform(pheno.data.values, 'most-normal')
+    # DataTransform.transform(pheno.data.values, 'most-normal')
     pass
     # pheno.sqr_transform()
