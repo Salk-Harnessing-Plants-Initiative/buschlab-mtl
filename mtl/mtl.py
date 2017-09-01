@@ -73,7 +73,8 @@ class MTL:
         sys.stdout.flush()
         with h5py.File(genotype_filepath, 'r') as genofile:
             geno_acc_ids = list(genofile["/accessions"].value)
-            geno_acc_idx = np.in1d(genofile['/accessions'], list(set(geno_acc_ids) & set(self.phenotypes.index)))
+            pheno_geno_acc_intersect = list(set(geno_acc_ids) & set(self.phenotypes.index))
+            geno_acc_idx = np.in1d(genofile['/accessions'], pheno_geno_acc_intersect)
             snps = genofile["/snps"][:, geno_acc_idx]
             geno_acc_ids = np.array(geno_acc_ids)[geno_acc_idx]
 
@@ -89,12 +90,18 @@ class MTL:
         macs_th = (macs >= self.mac_thres) & (macs <= snps.shape[0]-self.mac_thres)
         snps = snps[macs_th, :]
         sys.stdout.write("removed {:d} snps because of MAC threshold {:d}. (Remaining snps: {:d}.)\n"
-                         .format(pos.shape[0]-snps.shape[0], self.mac_thres, snps.shape[1]))
+                         .format(pos.shape[0]-snps.shape[0], self.mac_thres, snps.shape[0]))
         pos = pos[macs_th]
         geno_chroms = np.array(geno_chroms)[macs_th]
 
         snps = pd.DataFrame(snps, index=pd.MultiIndex.from_arrays([geno_chroms, pos]), columns=geno_acc_ids)
+        snps = snps.reindex_axis(sorted(snps.columns), axis=1)
 
+        accs_no_geno_info = np.array(self.phenotypes.index)[np.invert(np.in1d(self.phenotypes.index, pheno_geno_acc_intersect))]
+        self.phenotypes.drop(accs_no_geno_info, inplace=True)
+        sys.stdout.write("no genotype information for accessions: {}. Removed them from list of phenotypes.".format(accs_no_geno_info))
+
+        self.ibs = np.array(kinship.calc_ibs_kinship(snps.values))
 
         # snps.index = pd.MultiIndex.from_arrays([geno_chroms, pos])
         #geno_acc_ids
@@ -335,7 +342,7 @@ if __name__ == "__main__":
     workdir = "/home/GMI/christian.goeschl/devel/pycharm/mtmm-limix-take"
     genotypedir = "/data/gwas/genotypes_for_pygwas/1.0.0/regmap_horton_et_al_2012"
 
-    limtmm = MTL(mac_thres=10)
+    limtmm = MTL(mac_thres=0)
     i = 1
     j = 1
     # limtmm.read_phenotype_col(os.path.join(workdir, "bao_Std.txt"), i, colprefix="ctrl{:d}".format(i), sep="\t")
