@@ -103,36 +103,38 @@ class MTL:
 
         self.ibs = np.array(kinship.calc_ibs_kinship(snps.values))
 
-        # snps.index = pd.MultiIndex.from_arrays([geno_chroms, pos])
-        #geno_acc_ids
-        for ix, reg in enumerate(chr_regions):
-            self.chromosomes[reg[0]:reg[1]] = self.chr_names[ix]
+        # # snps.index = pd.MultiIndex.from_arrays([geno_chroms, pos])
+        # #geno_acc_ids
+        # for ix, reg in enumerate(chr_regions):
+        #     self.chromosomes[reg[0]:reg[1]] = self.chr_names[ix]
+        #
+        # self.iid = sorted(list(set(geno_acc_ids) & set(self.phenotypes.index)))
+        # del geno_acc_ids
+        #
+        # sys.stdout.write("genotype-phenotype intersection is {} accessions.\n".format(len(self.iid)))
+        #
+        # snps = np.array(snps.loc[self.iid])
+        # snpsshape = snps.shape
+        #
+        #
+        # ts = snps[:, macs_th]
+        # sys.stdout.write("creating kinship matrix ... ")
+        # sys.stdout.flush()
+        # start = time.time()
+        # self.ibs = kinship.calc_ibs_kinship(ts.T)
+        #
+        # # self.bnorm_K = kinship.scale_k(ibs).astype(np.float64)
+        # elapsed = time.time() - start
+        # sys.stdout.write("ok. ({} s)\n".format(elapsed))
 
-        self.iid = sorted(list(set(geno_acc_ids) & set(self.phenotypes.index)))
-        del geno_acc_ids
-
-        sys.stdout.write("genotype-phenotype intersection is {} accessions.\n".format(len(self.iid)))
-
-        snps = np.array(snps.loc[self.iid])
-        snpsshape = snps.shape
-
-
-        ts = snps[:, macs_th]
-        sys.stdout.write("creating kinship matrix ... ")
-        sys.stdout.flush()
-        start = time.time()
-        self.ibs = kinship.calc_ibs_kinship(ts.T)
-
-        # self.bnorm_K = kinship.scale_k(ibs).astype(np.float64)
-        elapsed = time.time() - start
-        sys.stdout.write("ok. ({} s)\n".format(elapsed))
-
-        self.used_snp_pos = pos[macs_th]
+        # self.used_snp_pos = pos[macs_th]
         self.macs = macs[macs_th]
-        self.mafs = self.macs/float(snpsshape[0])
-        self.chromosomes = self.chromosomes[macs_th]
+        self.mafs = self.macs/float(snps.shape[0])
+        # self.chromosomes = self.chromosomes[macs_th]
         # ts=sub_snps[:,(sumts<sub_snps.shape[0]*0.99)&(sumts>(sub_snps.shape[0]*0.01))]
-        self.ts_norm = (ts - ts.mean(axis=0)) / ts.std(axis=0)
+        ts_norm = snps.values.T.astype(float)
+        ts_norm = (ts_norm - ts_norm.mean(axis=0)) / ts_norm.std(axis=0)
+        self.ts_norm = pd.DataFrame(ts_norm, index=snps.columns, columns=snps.index)
         return
 
     # def create_kinship(self):
@@ -342,7 +344,7 @@ if __name__ == "__main__":
     workdir = "/home/GMI/christian.goeschl/devel/pycharm/mtmm-limix-take"
     genotypedir = "/data/gwas/genotypes_for_pygwas/1.0.0/regmap_horton_et_al_2012"
 
-    limtmm = MTL(mac_thres=0)
+    limtmm = MTL(mac_thres=1)
     i = 1
     j = 1
     # limtmm.read_phenotype_col(os.path.join(workdir, "bao_Std.txt"), i, colprefix="ctrl{:d}".format(i), sep="\t")
