@@ -99,7 +99,7 @@ class MTL:
 
         accs_no_geno_info = np.array(self.phenotypes.index)[np.invert(np.in1d(self.phenotypes.index, pheno_geno_acc_intersect))]
         self.phenotypes.drop(accs_no_geno_info, inplace=True)
-        sys.stdout.write("no genotype information for accessions: {}. Removed them from list of phenotypes.".format(accs_no_geno_info))
+        sys.stdout.write("no genotype information for accessions: {}. Removed them from list of phenotypes.\n".format(accs_no_geno_info))
 
         self.ibs = np.array(kinship.calc_ibs_kinship(snps.values))
 
@@ -195,7 +195,12 @@ class MTL:
         return vals
 
     def do_qtl(self, outputdir, rnr=None):
-        pheno_norm = self.phenotypes.loc[self.iid].values
+        pheno_norm = self.phenotypes.values.astype(float)
+        p1 = pheno_norm[:, 0]
+        p2 = pheno_norm[:, 1]
+        p1 = (p1 - p1.mean()) / p1.std()
+        p2 = (p2 - p2.mean()) / p2.std()
+        pheno_norm = np.vstack([p1, p2]).T
 
         # p1 = np.array(self.phenotypes[[0]].loc[self.iid]).astype(np.float64)
         # p1 = (p1 - p1.min()) / (p1.max() - p1.min())
@@ -234,7 +239,7 @@ class MTL:
 
         # QTL
         n_pheno = pheno_norm.shape[1]  # number of traits
-        # N = len(self.iid)  # number of accessions
+        # N = len(self.ibs.shape[1])  # number of accessions
         covs = None
         Acovs = None
         K1r = self.ibs
@@ -246,10 +251,10 @@ class MTL:
         Asnps1[0, :] = 1.0
         Asnps1[1, 0] = 1.0
 
-        sys.stdout.write("calulating qtl ... \n")
+        sys.stdout.write("calculating qtl ... \n")
         sys.stdout.flush()
         start = time.time()
-        pvalues_inter = qtl.qtl_test_interaction_lmm_kronecker(snps=self.ts_norm, phenos=pheno_norm, covs=covs, Acovs=Acovs,
+        pvalues_inter = qtl.qtl_test_interaction_lmm_kronecker(snps=self.ts_norm.values, phenos=pheno_norm, covs=covs, Acovs=Acovs,
                                                            Asnps0=Asnps0,
                                                            Asnps1=Asnps1, K1r=K1r)
         elapsed = time.time() - start
@@ -275,8 +280,12 @@ class MTL:
         # specific (G x E)
         sys.stdout.write("... writing specific interaction results ... ")
         start = time.time()
-        gwas_result = res.GWASResult(self.chr_names, self.chromosomes,
-                                     self.used_snp_pos, pvalues_inter[0],
+
+        pos = np.array(list(self.ts_norm.columns.values))
+        chr_names = set(pos[:, 0].astype(np.str))
+
+        gwas_result = res.GWASResult(chr_names, pos[:, 0].astype(np.str),
+                                     pos[:, 1].astype(np.int), pvalues_inter[0],
                                      dict(mafs=self.mafs, macs=self.macs),
                                      additional_columns={})
         gwas_result.save_as_csv(os.path.join(outputdir, "{}_specific_pvals.csv".format(fileprefix)))
@@ -286,10 +295,10 @@ class MTL:
         sys.stdout.write("ok ({:f} s)\n".format(time.time() - start))
 
         # common
-        sys.stdout.write("... writing common interaction results ... ")
+        sys.stdout.write("... writing  common  interaction results ... ")
         start = time.time()
-        gwas_result = res.GWASResult(self.chr_names, self.chromosomes,
-                                     self.used_snp_pos, pvalues_inter[1],
+        gwas_result = res.GWASResult(chr_names, pos[:, 0].astype(np.str),
+                                     pos[:, 1].astype(np.int), pvalues_inter[1],
                                      dict(mafs=self.mafs, macs=self.macs),
                                      additional_columns={})
         gwas_result.save_as_csv(os.path.join(outputdir, "{}_common_pvals.csv".format(fileprefix)))
@@ -299,10 +308,10 @@ class MTL:
         sys.stdout.write("ok ({:f} s)\n".format(time.time() - start))
 
         # any
-        sys.stdout.write("... writing any interaction results ... ")
+        sys.stdout.write("... writing    any   interaction results ... ")
         start = time.time()
-        gwas_result = res.GWASResult(self.chr_names, self.chromosomes,
-                                     self.used_snp_pos, pvalues_inter[2],
+        gwas_result = res.GWASResult(chr_names, pos[:, 0].astype(np.str),
+                                     pos[:, 1].astype(np.int), pvalues_inter[2],
                                      dict(mafs=self.mafs, macs=self.macs),
                                      additional_columns={})
         gwas_result.save_as_csv(os.path.join(outputdir, "{}_any_pvals.csv".format(fileprefix)))
@@ -314,6 +323,7 @@ class MTL:
 
 
 def run_by_environment_vars():
+    sys.stdout.write("MTL run by environment variables.\n")
     tfile1 = os.environ['MTL_FILE1']
     tfile2 = os.environ['MTL_FILE2']
     tcols1str = os.environ['MTL_COLS1']
@@ -325,6 +335,18 @@ def run_by_environment_vars():
     outputdir = os.environ['MTL_OUTDIR']
     jobid = int(os.getenv('PBS_ARRAY_INDEX', '0'))
     filesep = os.getenv('MTL_FILE_SEPARATOR', '\t')
+
+    sys.stdout.write("using the following options:\n")
+    sys.stdout.write("trait file 1   : {}\n".format(tfile1))
+    sys.stdout.write("trait file 2   : {}\n".format(tfile2))
+    sys.stdout.write("file separator : {}\n".format(filesep))
+    sys.stdout.write("column string 1: {}\n".format(tcols1str))
+    sys.stdout.write("column string 2: {}\n".format(tcols2str))
+    sys.stdout.write("prefix 1       : {}\n".format(tprefix1))
+    sys.stdout.write("prefix 2       : {}\n".format(tprefix2))
+    sys.stdout.write("snps database  : {}\n".format(snpsdb))
+    sys.stdout.write("mac threshold  : {}\n".format(macthres))
+    sys.stdout.write("job ID         : {}\n".format(jobid))
 
     tcols1 = eval(tcols1str)
     tcols2 = eval(tcols2str)
