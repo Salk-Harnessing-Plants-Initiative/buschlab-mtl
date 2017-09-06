@@ -2,6 +2,9 @@
 setup.py
 mtl/__init__.py
 mtl/mtl.py
+mtl/core/__init__.py
+mtl/core/data_transform.py
+mtl/core/phenotype.py
 mtl/pygwas_modules/__init__.py
 mtl/pygwas_modules/dataParsers.py
 mtl/pygwas_modules/env.py
