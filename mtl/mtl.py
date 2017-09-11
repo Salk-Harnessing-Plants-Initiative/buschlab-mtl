@@ -43,8 +43,6 @@ class MTL:
 
             reader = csv.reader(phenofile, dialect=dialect)
             hcols = reader.next()
-            # hcols = phenofile.readline().strip().split(sep)
-
 
             p = []
             for dcols in reader:
@@ -297,7 +295,8 @@ class MTL:
                                      pos[:, 1].astype(np.int), pvalues_inter[0],
                                      dict(mafs=self.mafs, macs=self.macs),
                                      additional_columns={})
-        gwas_result.save_as_csv(os.path.join(outputdir, "{}_specific_pvals.csv".format(fileprefix)))
+        # gwas_result.save_as_csv(os.path.join(outputdir, "{}_specific_pvals.csv".format(fileprefix)))
+        gwas_result.save_as_hdf5(os.path.join(outputdir, "{}_specific_pvals.hdf5".format(fileprefix)))
         gplt.plot_gwas_result(gwas_result, os.path.join(outputdir, "{}_specific_manhattan.png".format(fileprefix)),
                               mac=self.mac_thres)
         gplt.plot_qq(gwas_result, os.path.join(outputdir, "{}_specific_qq.png".format(fileprefix)))
@@ -310,7 +309,8 @@ class MTL:
                                      pos[:, 1].astype(np.int), pvalues_inter[1],
                                      dict(mafs=self.mafs, macs=self.macs),
                                      additional_columns={})
-        gwas_result.save_as_csv(os.path.join(outputdir, "{}_common_pvals.csv".format(fileprefix)))
+        # gwas_result.save_as_csv(os.path.join(outputdir, "{}_common_pvals.csv".format(fileprefix)))
+        gwas_result.save_as_hdf5(os.path.join(outputdir, "{}_common_pvals.hdf5".format(fileprefix)))
         gplt.plot_gwas_result(gwas_result, os.path.join(outputdir, "{}_common_manhattan.png".format(fileprefix)),
                               mac=self.mac_thres)
         gplt.plot_qq(gwas_result, os.path.join(outputdir, "{}_common_qq.png".format(fileprefix)))
@@ -323,7 +323,8 @@ class MTL:
                                      pos[:, 1].astype(np.int), pvalues_inter[2],
                                      dict(mafs=self.mafs, macs=self.macs),
                                      additional_columns={})
-        gwas_result.save_as_csv(os.path.join(outputdir, "{}_any_pvals.csv".format(fileprefix)))
+        # gwas_result.save_as_csv(os.path.join(outputdir, "{}_any_pvals.csv".format(fileprefix)))
+        gwas_result.save_as_hdf5(os.path.join(outputdir, "{}_any_pvals.hdf5".format(fileprefix)))
         gplt.plot_gwas_result(gwas_result, os.path.join(outputdir, "{}_any_manhattan.png".format(fileprefix)),
                               mac=self.mac_thres)
         gplt.plot_qq(gwas_result, os.path.join(outputdir, "{}_any_qq.png".format(fileprefix)))
