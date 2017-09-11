@@ -4,6 +4,7 @@
     date:   2016-09-16
 """
 
+import csv
 import sys
 import time
 
@@ -36,12 +37,20 @@ class MTL:
 
     def read_phenotype_col(self, phenotype_filepath, colnr, colprefix="", sep='\t'):
         sys.stdout.write("reading phenotypes: {}, col: {}\n".format(phenotype_filepath,colnr))
-        with open(phenotype_filepath, 'r') as phenofile:
-            hcols = phenofile.readline().strip().split(sep)
-            p = []
+        with open(phenotype_filepath, 'U') as phenofile:
+            dialect = csv.Sniffer().sniff(phenofile.read(1024))
+            phenofile.seek(0)
 
-            for l in phenofile:
-                dcols = l.strip().split(sep)
+            reader = csv.reader(phenofile, dialect=dialect)
+            hcols = reader.next()
+            # hcols = phenofile.readline().strip().split(sep)
+
+
+            p = []
+            for dcols in reader:
+                if len(dcols) == 0:
+                    continue
+
                 try:
                     p.append([dcols[0], np.float64(dcols[colnr])])
                 except ValueError:
@@ -363,7 +372,7 @@ def run_by_environment_vars():
 if __name__ == "__main__":
     # run_by_environment_vars()
 
-    workdir = "/home/GMI/christian.goeschl/devel/pycharm/mtmm-limix-take"
+    workdir = "/data/christian.goeschl/wb-fe_p_zn-data/traits"
     genotypedir = "/data/gwas/genotypes_for_pygwas/1.0.0/regmap_horton_et_al_2012"
 
     limtmm = MTL(mac_thres=1)
@@ -371,11 +380,11 @@ if __name__ == "__main__":
     j = 1
     # limtmm.read_phenotype_col(os.path.join(workdir, "bao_Std.txt"), i, colprefix="ctrl{:d}".format(i), sep="\t")
     # limtmm.read_phenotype_col(os.path.join(workdir, "bao_Cd+.txt"), j, colprefix="cd+{:d}".format(j), sep="\t")
-    limtmm.read_phenotype_col(os.path.join(workdir, "LRD_IAAvsMock.csv"), i, colprefix="IAA{:d}".format(i), sep=",")
-    limtmm.read_phenotype_col(os.path.join(workdir, "LRD_IBAvsMock.csv"), j, colprefix="IBA{:d}".format(j), sep=",")
+    limtmm.read_phenotype_col(os.path.join(workdir, "Fe_brat_acc_phenotypes_Brat.txt"), i, colprefix="Fe{:d}".format(i), sep="\t")
+    limtmm.read_phenotype_col(os.path.join(workdir, "MS_alltraits.txt"), j, colprefix="MS{:d}".format(j), sep="\t")
     # limtmm.write_phenotypes(os.path.join(workdir, "used_phenotypes_dbg_{}-{}.csv".format(i, j)))
     limtmm.read_genotypes(os.path.join(genotypedir, "all_chromosomes_binary.hdf5"))
-    limtmm.do_qtl(os.path.join(workdir, "IBA-vs-IAA-mtl-run"))
+    limtmm.do_qtl(os.path.join(workdir, "Fe-vs-MS-mtl-run"))
 
     # for i in range(3, 23):
     #     limtmm = MtmmLimix(mac_thres=5)
