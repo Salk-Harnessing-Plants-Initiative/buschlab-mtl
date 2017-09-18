@@ -34,6 +34,7 @@ class MTL:
         self.mafs = None
         self.chromosomes = None
         self.chr_names = None
+        self.pvalues = None
 
     def read_phenotype_col(self, phenotype_filepath, colnr, colprefix="", sep='\t'):
         sys.stdout.write("reading phenotypes: {}, col: {}\n".format(phenotype_filepath,colnr))
@@ -201,7 +202,7 @@ class MTL:
         sys.stdout.write('optimal lambda was %0.1f\n' % l)
         return vals
 
-    def do_qtl(self, outputdir, rnr=None):
+    def do_qtl(self):
         pheno_norm = self.phenotypes.values.astype(float)
         p1 = pheno_norm[:, 0]
         p2 = pheno_norm[:, 1]
@@ -261,12 +262,14 @@ class MTL:
         sys.stdout.write("calculating qtl ... \n")
         sys.stdout.flush()
         start = time.time()
-        pvalues_inter = qtl.qtl_test_interaction_lmm_kronecker(snps=self.ts_norm.values, phenos=pheno_norm, covs=covs, Acovs=Acovs,
+        self.pvalues = qtl.qtl_test_interaction_lmm_kronecker(snps=self.ts_norm.values, phenos=pheno_norm, covs=covs, Acovs=Acovs,
                                                            Asnps0=Asnps0,
                                                            Asnps1=Asnps1, K1r=K1r)
         elapsed = time.time() - start
         sys.stdout.write("qtl finished. ({} s)\n".format(elapsed))
 
+
+    def write_results(self, outputdir):
         if not os.path.isdir(outputdir):
             sys.stdout.write("creating output directory: {} ... ".format(outputdir))
             sys.stdout.flush()
@@ -276,13 +279,13 @@ class MTL:
 
         sys.stdout.write("plotting and writing results ... \n")
         sys.stdout.flush()
-        pvalues_inter = np.array(pvalues_inter)
+        pvalues_inter = np.array(self.pvalues)
         pvalues_inter = pvalues_inter[:, 0, :]
 
-        if rnr is not None:
-            fileprefix = "{}-mac{}-run{}".format("-x-".join(self.phenotypes.columns), self.mac_thres, rnr)
-        else:
-            fileprefix = "{}-mac{}".format("-x-".join(self.phenotypes.columns), self.mac_thres)
+        # if rnr is not None:
+        #     fileprefix = "{}-mac{}-run{}".format("-x-".join(self.phenotypes.columns), self.mac_thres, rnr)
+        # else:
+        fileprefix = "{}-mac{}".format("-x-".join(self.phenotypes.columns), self.mac_thres)
 
         # specific (G x E)
         sys.stdout.write("... writing specific interaction results ... ")
@@ -331,6 +334,9 @@ class MTL:
         sys.stdout.write("ok ({:f} s)\n".format(time.time() - start))
         sys.stdout.write("ok.\n")
 
+    def do_genehunter(self):
+
+
 
 def run_by_environment_vars():
     sys.stdout.write("MTL run by environment variables.\n")
@@ -345,6 +351,13 @@ def run_by_environment_vars():
     outputdir = os.environ['MTL_OUTDIR']
     jobid = int(os.getenv('PBS_ARRAY_INDEX', '0'))
     filesep = os.getenv('MTL_FILE_SEPARATOR', '\t')
+
+    dogenehunter = os.getenv('MTL_DO_GENEHUNTER', 'true')
+    if dogenehunter.lower() == 'true':
+        import argparse
+        hunter_args = argparse.Namespace()
+        hunter_args.db = os.environ['GHUNTER_DB']
+        hunter_args.dir = outputdir
 
     sys.stdout.write("using the following options:\n")
     sys.stdout.write("trait file 1   : {}\n".format(tfile1))
@@ -367,7 +380,8 @@ def run_by_environment_vars():
     mt.read_phenotype_col(tfile1, tcols1[jobid], tprefix1, sep=filesep)
     mt.read_phenotype_col(tfile2, tcols2[jobid], tprefix2, sep=filesep)
     mt.read_genotypes(snpsdb)
-    mt.do_qtl(outputdir)
+    mt.do_qtl()
+    mt.write_results(outputdir)
 
 
 if __name__ == "__main__":
