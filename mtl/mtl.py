@@ -18,26 +18,27 @@ import scipy as sp
 import pygwas_modules.kinship as kinship
 import pygwas_modules.plotting as gplt
 import pygwas_modules.result as res
+from genehunter.core.GeneAnnotationDbExtractor import GeneAnnotationDbExtractor
 
 
 class MTL:
     def __init__(self, mac_thres=0):
         self.mac_thres = mac_thres
-        self.phenotypes = None
+        self.phenotypes = pd.DataFrame()
         # self.snps = None
-        self.iid = None
+        # self.iid = None
         self.ibs = None
         self.ts_norm = None
         # self.bnorm_K = None
-        self.used_snp_pos = None
+        # self.used_snp_pos = None
         self.macs = None
         self.mafs = None
-        self.chromosomes = None
-        self.chr_names = None
+        # self.chromosomes = None
+        # self.chr_names = None
         self.pvalues = None
 
-    def read_phenotype_col(self, phenotype_filepath, colnr, colprefix="", sep='\t'):
-        sys.stdout.write("reading phenotypes: {}, col: {}\n".format(phenotype_filepath,colnr))
+    def read_phenotype_col(self, phenotype_filepath, colnr, colprefix=""):
+        sys.stdout.write("reading phenotypes: {}, col: {}\n".format(phenotype_filepath, colnr))
         with open(phenotype_filepath, 'U') as phenofile:
             dialect = csv.Sniffer().sniff(phenofile.read(1024))
             phenofile.seek(0)
@@ -53,7 +54,8 @@ class MTL:
                 try:
                     p.append([dcols[0], np.float64(dcols[colnr])])
                 except ValueError:
-                    sys.stdout.write("excluding accession {} because of trait value {}\n".format(dcols[0], dcols[colnr]))
+                    sys.stdout.write(
+                        "excluding accession {} because of trait value {}\n".format(dcols[0], dcols[colnr]))
                     continue
 
             data = pd.DataFrame(p)
@@ -63,7 +65,7 @@ class MTL:
             data = data[list(range(1, data.shape[1]))]
             data.columns = ["_".join([colprefix, hcols[colnr]])]
 
-            if self.phenotypes is None:
+            if self.phenotypes.size == 0:
                 self.phenotypes = data
             else:
                 pheno_acc_ids = list(set(self.phenotypes.index) & set(ids))
@@ -89,25 +91,27 @@ class MTL:
             chr_names = genofile['positions'].attrs.get('chrs')
             chr_regions = np.array(genofile['positions'].attrs.get('chr_regions'))
             geno_chroms = []
-            for i, reg in enumerate(chr_regions):
-                geno_chroms.extend(np.repeat(chr_names[i], reg[1]-reg[0]))
+            for ix, reg in enumerate(chr_regions):
+                geno_chroms.extend(np.repeat(chr_names[ix], reg[1] - reg[0]))
             pos = genofile['/positions'].value
         sys.stdout.write("ok.\n")
 
         macs = np.array(snps.sum(axis=1)).astype(int)
-        macs_th = (macs >= self.mac_thres) & (macs <= snps.shape[0]-self.mac_thres)
+        macs_th = (macs >= self.mac_thres) & (macs <= snps.shape[0] - self.mac_thres)
         snps = snps[macs_th, :]
         sys.stdout.write("removed {:d} snps because of MAC threshold {:d}. (Remaining snps: {:d}.)\n"
-                         .format(pos.shape[0]-snps.shape[0], self.mac_thres, snps.shape[0]))
+                         .format(pos.shape[0] - snps.shape[0], self.mac_thres, snps.shape[0]))
         pos = pos[macs_th]
         geno_chroms = np.array(geno_chroms)[macs_th]
 
         snps = pd.DataFrame(snps, index=pd.MultiIndex.from_arrays([geno_chroms, pos]), columns=geno_acc_ids)
         snps = snps.reindex_axis(sorted(snps.columns), axis=1)
 
-        accs_no_geno_info = np.array(self.phenotypes.index)[np.invert(np.in1d(self.phenotypes.index, pheno_geno_acc_intersect))]
+        accs_no_geno_info = np.array(self.phenotypes.index)[
+            np.invert(np.in1d(self.phenotypes.index, pheno_geno_acc_intersect))]
         self.phenotypes.drop(accs_no_geno_info, inplace=True)
-        sys.stdout.write("no genotype information for accessions: {}. Removed them from list of phenotypes.\n".format(accs_no_geno_info))
+        sys.stdout.write("no genotype information for accessions: {}. Removed them from list of phenotypes.\n".format(
+            accs_no_geno_info))
 
         self.ibs = np.array(kinship.calc_ibs_kinship(snps.values))
 
@@ -137,7 +141,7 @@ class MTL:
 
         # self.used_snp_pos = pos[macs_th]
         self.macs = macs[macs_th]
-        self.mafs = self.macs/float(snps.shape[0])
+        self.mafs = self.macs / float(snps.shape[0])
         # self.chromosomes = self.chromosomes[macs_th]
         # ts=sub_snps[:,(sumts<sub_snps.shape[0]*0.99)&(sumts>(sub_snps.shape[0]*0.01))]
         ts_norm = snps.values.T.astype(float)
@@ -168,7 +172,8 @@ class MTL:
     #     elapsed = time.time() - start
     #     sys.stdout.write("ok. ({} s)\n".format(elapsed))
 
-    def box_cox_transform(self, values, lambda_range=(-2.0, 2.0), lambda_increment=0.1, verbose=False, method='standard'):
+    def box_cox_transform(self, values, lambda_range=(-2.0, 2.0), lambda_increment=0.1, verbose=False,
+                          method='standard'):
         """
         Performs the Box-Cox transformation, over different ranges, picking the optimal one w. respect to normality.
         """
@@ -217,9 +222,9 @@ class MTL:
         # pheno_norm = np.concatenate((p1, p2), axis=1)
 
 
-        #exp transform (does not converge)
+        # exp transform (does not converge)
 
-        #sqrt transform (does not converge)
+        # sqrt transform (does not converge)
         # p1 = np.array(self.phenotypes[[0]].loc[self.iid]).astype(np.float64)
         # p1 = np.sqrt((p1 - p1.min()) + 0.1 * np.std(p1))
         # p2 = np.array(self.phenotypes[[1]].loc[self.iid]).astype(np.float64)
@@ -262,12 +267,12 @@ class MTL:
         sys.stdout.write("calculating qtl ... \n")
         sys.stdout.flush()
         start = time.time()
-        self.pvalues = qtl.qtl_test_interaction_lmm_kronecker(snps=self.ts_norm.values, phenos=pheno_norm, covs=covs, Acovs=Acovs,
-                                                           Asnps0=Asnps0,
-                                                           Asnps1=Asnps1, K1r=K1r)
+        self.pvalues = qtl.qtl_test_interaction_lmm_kronecker(snps=self.ts_norm.values, phenos=pheno_norm, covs=covs,
+                                                              Acovs=Acovs,
+                                                              Asnps0=Asnps0,
+                                                              Asnps1=Asnps1, K1r=K1r)
         elapsed = time.time() - start
         sys.stdout.write("qtl finished. ({} s)\n".format(elapsed))
-
 
     def write_results(self, outputdir):
         if not os.path.isdir(outputdir):
@@ -334,8 +339,146 @@ class MTL:
         sys.stdout.write("ok ({:f} s)\n".format(time.time() - start))
         sys.stdout.write("ok.\n")
 
-    def do_genehunter(self):
+    def do_genehunter(self, hunter_db, pval_thres=1.0e-5, mac_thres=10, udistance=4000, ddistance=4000):
+        dbextract = GeneAnnotationDbExtractor(hunter_db)
+        sys.stdout.write("gene hunter using database: {}\n".format(hunter_db))
 
+        all_peaks_df = None
+        origin = "{}-mac{}".format("-x-".join(self.phenotypes.columns), self.mac_thres)
+        interact_labels = ["specific", "common", "any"]
+        for interact_ix in range(3):
+            select_ix = np.where((self.pvalues[interact_ix][0] <= pval_thres) & (self.macs >= mac_thres))[0]
+            if select_ix.size == 0:
+                continue
+            pos = np.array(list(self.ts_norm.columns.values))
+
+            row = pd.Series(index=["Original_file",
+                                   "Chromosome",
+                                   "SNP_pos",
+                                   "GWAS_pvalue",
+                                   "MAC",
+                                   "Gene_start",
+                                   "Gene_end",
+                                   "Gene_orientation",
+                                   "Relative_distance",
+                                   "SNP_relative_position",
+                                   "Target_AGI",
+                                   "Target_element_type",
+                                   "Target_sequence_type",
+                                   "Target_annotation",
+                                   "Target_attributes"])
+            row["Original_file"] = "{}_{}_pvals".format(origin, interact_labels[interact_ix])
+            # genes_df = none
+            for ix in select_ix:
+                ext_row = row.copy(deep=True)
+                ext_row["Chromosome"] = pos[ix, 0]
+                ext_row["SNP_pos"] = pos[ix, 1]
+                ext_row["GWAS_pvalue"] = self.pvalues[interact_ix][0][ix]
+                ext_row["MAC"] = self.macs[ix]
+
+                genes = dbextract.extract_loc_uddist(pos[ix, 0], pos[ix, 1], udistance, ddistance)
+                sys.stdout.write(
+                    "    peak: {}, pos {} -> {} genes in range\n".format(pos[ix, 0], pos[ix, 1], len(genes)))
+                if len(genes) == 0:
+                    # ext_row["Gene_start"] = "NA"
+                    # ext_row["Gene_end"] = "NA"
+                    # ext_row["Gene_orientation"] = "NA"
+                    # ext_row["Relative_distance"] = "NA"
+                    # ext_row["SNP_relative_position"] = "NA"
+                    # ext_row["Target_AGI"] = "NA"
+                    # ext_row["Target_element_type"] = "NA"
+                    # ext_row["Target_sequence_type"] = "NA"
+                    # ext_row["Target_annotation"] = "NA"
+                    # ext_row["Target_attributes"] = "NA"
+
+                    if all_peaks_df is not None:
+                        all_peaks_df = pd.concat([all_peaks_df, ext_row.to_frame().transpose()], axis=0,
+                                                 ignore_index=True)
+                    else:
+                        all_peaks_df = ext_row.to_frame().transpose()
+                    continue
+
+                for g in genes:
+                    ext_row = pd.Series(row)
+                    ext_row["Gene_start"] = g.start
+                    ext_row["Gene_end"] = g.end
+                    ext_row["Gene_orientation"] = g.strand
+                    if g.strand == '+':
+                        ext_row["Relative_distance"] = gw_pos - g.start
+                    else:
+                        ext_row["Relative_distance"] = g.start - gw_pos
+
+                    if g.start <= gw_pos <= g.end:
+                        ext_row["SNP_relative_position"] = "in gene"
+                    elif gw_pos < g.start:
+                        if g.strand == '+':
+                            ext_row["SNP_relative_position"] = "upstream"
+                        else:
+                            ext_row["SNP_relative_position"] = "downstream"
+                    else:
+                        if g.strand == '+':
+                            ext_row["SNP_relative_position"] = "downstream"
+                        else:
+                            ext_row["SNP_relative_position"] = "upstream"
+                    ext_row["Target_AGI"] = g.id
+                    ext_row["Target_element_type"] = g.feature
+                    ext_row["Target_sequence_type"] = g.sequencetype
+                    ext_row["Target_annotation"] = "NA"
+                    ext_row["Target_attributes"] = g.attribute
+
+                    if all_peaks_df is not None:
+                        all_peaks_df = pd.concat([all_peaks_df, ext_row.to_frame().transpose()], axis=0,
+                                                 ignore_index=True)
+                    else:
+                        all_peaks_df = ext_row.to_frame().transpose()
+
+                    if args.depth >= 1:
+                        for rna in g.rna:
+                            ext_row = pd.Series(row)
+                            ext_row["Gene_start"] = rna.start
+                            ext_row["Gene_end"] = rna.end
+                            ext_row["Gene_orientation"] = rna.strand
+                            if rna.strand == '+':
+                                ext_row["Relative_distance"] = gw_pos - rna.start
+                            else:
+                                ext_row["Relative_distance"] = rna.start - gw_pos
+
+                            if rna.start <= gw_pos <= rna.end:
+                                ext_row["SNP_relative_position"] = "in feature"
+                            elif gw_pos < rna.start:
+                                if rna.strand == '+':
+                                    ext_row["SNP_relative_position"] = "upstream"
+                                else:
+                                    ext_row["SNP_relative_position"] = "downstream"
+                            else:
+                                if rna.strand == '+':
+                                    ext_row["SNP_relative_position"] = "downstream"
+                                else:
+                                    ext_row["SNP_relative_position"] = "upstream"
+                            ext_row["Target_AGI"] = rna.id
+                            ext_row["Target_element_type"] = rna.feature
+                            ext_row["Target_sequence_type"] = rna.sequencetype
+                            if rna.short_annotation is not None:
+                                ext_row["Target_annotation"] = rna.short_annotation
+                            else:
+                                ext_row["Target_annotation"] = "NA"
+                            ext_row["Target_attributes"] = rna.attribute
+
+                            all_peaks_df = pd.concat([all_peaks_df, ext_row.to_frame().transpose()], axis=0,
+                                                     ignore_index=True)
+            sys.stdout.write("\n")
+        if args.output is not None:
+            args.output = args.output.replace("_", "-")
+            out_path = "{}_gene-hunter_u{:d}_d{:d}_pval{:.3e}_mac{:d}_fdr{:.3f}.txt".format(args.output,
+                                                                                            args.udistance,
+                                                                                            args.ddistance,
+                                                                                            args.pvalue_threshold,
+                                                                                            args.minor_allele_count,
+                                                                                            args.fdr)
+            out_path = os.path.join(args.dir, out_path)
+            all_peaks_df.to_csv(out_path, sep='\t', header=True, index=False)
+        else:
+            all_peaks_df.to_string(sys.stdout, header=True, index=False)
 
 
 def run_by_environment_vars():
@@ -395,11 +538,15 @@ if __name__ == "__main__":
     j = 1
     # limtmm.read_phenotype_col(os.path.join(workdir, "bao_Std.txt"), i, colprefix="ctrl{:d}".format(i), sep="\t")
     # limtmm.read_phenotype_col(os.path.join(workdir, "bao_Cd+.txt"), j, colprefix="cd+{:d}".format(j), sep="\t")
-    limtmm.read_phenotype_col(os.path.join(workdir, "Fe_brat_acc_phenotypes_Brat.txt"), i, colprefix="Fe{:d}".format(i), sep="\t")
-    limtmm.read_phenotype_col(os.path.join(workdir, "MS_alltraits.txt"), j, colprefix="MS{:d}".format(j), sep="\t")
+    limtmm.read_phenotype_col(os.path.join(workdir, "Fe_brat_acc_phenotypes_Brat.txt"), i, colprefix="Fe{:d}".format(i))
+    limtmm.read_phenotype_col(os.path.join(workdir, "MS_alltraits.txt"), j, colprefix="MS{:d}".format(j))
     # limtmm.write_phenotypes(os.path.join(workdir, "used_phenotypes_dbg_{}-{}.csv".format(i, j)))
     limtmm.read_genotypes(os.path.join(genotypedir, "all_chromosomes_binary.hdf5"))
-    limtmm.do_qtl(os.path.join(workdir, "Fe-vs-MS-mtl-run"))
+    limtmm.do_qtl()
+    # limtmm.write_results(os.path.join(workdir, "Fe-vs-MS-mtl-run"))
+    limtmm.do_genehunter(
+        "/home/GMI/christian.goeschl/devel/pycharm/GeneHunter/db/At30_20101214_genes_transposons.sqlite")
+
 
     # for i in range(3, 23):
     #     limtmm = MtmmLimix(mac_thres=5)
