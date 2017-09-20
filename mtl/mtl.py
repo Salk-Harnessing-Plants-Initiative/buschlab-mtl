@@ -104,14 +104,15 @@ class MTL:
         pos = pos[macs_th]
         geno_chroms = np.array(geno_chroms)[macs_th]
 
-        snps = pd.DataFrame(snps, index=pd.MultiIndex.from_arrays([geno_chroms, pos]), columns=geno_acc_ids)
+        snps = pd.DataFrame(snps, index=pd.MultiIndex.from_arrays([geno_chroms, pos], names=('chr', 'pos')), columns=geno_acc_ids)
         snps = snps.reindex_axis(sorted(snps.columns), axis=1)
 
         accs_no_geno_info = np.array(self.phenotypes.index)[
             np.invert(np.in1d(self.phenotypes.index, pheno_geno_acc_intersect))]
-        self.phenotypes.drop(accs_no_geno_info, inplace=True)
-        sys.stdout.write("no genotype information for accessions: {}. Removed them from list of phenotypes.\n".format(
-            accs_no_geno_info))
+        if accs_no_geno_info.size > 0:
+            self.phenotypes.drop(accs_no_geno_info, inplace=True)
+            sys.stdout.write("no genotype information for accessions: {}. Removed them from list of phenotypes.\n".format(
+                accs_no_geno_info))
 
         self.ibs = np.array(kinship.calc_ibs_kinship(snps.values))
 
@@ -339,7 +340,8 @@ class MTL:
         sys.stdout.write("ok ({:f} s)\n".format(time.time() - start))
         sys.stdout.write("ok.\n")
 
-    def do_genehunter(self, hunter_db, pval_thres=1.0e-5, mac_thres=10, udistance=4000, ddistance=4000):
+    def do_genehunter(self, hunter_db, pval_thres=1.0e-5, mac_thres=10, udistance=4000, ddistance=4000, feature_depth=1,
+                      output_prefix=None):
         dbextract = GeneAnnotationDbExtractor(hunter_db)
         sys.stdout.write("gene hunter using database: {}\n".format(hunter_db))
 
@@ -380,17 +382,6 @@ class MTL:
                 sys.stdout.write(
                     "    peak: {}, pos {} -> {} genes in range\n".format(pos[ix, 0], pos[ix, 1], len(genes)))
                 if len(genes) == 0:
-                    # ext_row["Gene_start"] = "NA"
-                    # ext_row["Gene_end"] = "NA"
-                    # ext_row["Gene_orientation"] = "NA"
-                    # ext_row["Relative_distance"] = "NA"
-                    # ext_row["SNP_relative_position"] = "NA"
-                    # ext_row["Target_AGI"] = "NA"
-                    # ext_row["Target_element_type"] = "NA"
-                    # ext_row["Target_sequence_type"] = "NA"
-                    # ext_row["Target_annotation"] = "NA"
-                    # ext_row["Target_attributes"] = "NA"
-
                     if all_peaks_df is not None:
                         all_peaks_df = pd.concat([all_peaks_df, ext_row.to_frame().transpose()], axis=0,
                                                  ignore_index=True)
@@ -404,13 +395,13 @@ class MTL:
                     ext_row["Gene_end"] = g.end
                     ext_row["Gene_orientation"] = g.strand
                     if g.strand == '+':
-                        ext_row["Relative_distance"] = gw_pos - g.start
+                        ext_row["Relative_distance"] = pos[ix, 1] - g.start
                     else:
-                        ext_row["Relative_distance"] = g.start - gw_pos
+                        ext_row["Relative_distance"] = g.start - pos[ix, 1]
 
-                    if g.start <= gw_pos <= g.end:
+                    if g.start <= pos[ix, 1] <= g.end:
                         ext_row["SNP_relative_position"] = "in gene"
-                    elif gw_pos < g.start:
+                    elif pos[ix, 1] < g.start:
                         if g.strand == '+':
                             ext_row["SNP_relative_position"] = "upstream"
                         else:
@@ -432,20 +423,20 @@ class MTL:
                     else:
                         all_peaks_df = ext_row.to_frame().transpose()
 
-                    if args.depth >= 1:
+                    if feature_depth >= 1:
                         for rna in g.rna:
                             ext_row = pd.Series(row)
                             ext_row["Gene_start"] = rna.start
                             ext_row["Gene_end"] = rna.end
                             ext_row["Gene_orientation"] = rna.strand
                             if rna.strand == '+':
-                                ext_row["Relative_distance"] = gw_pos - rna.start
+                                ext_row["Relative_distance"] = pos[ix, 1] - rna.start
                             else:
-                                ext_row["Relative_distance"] = rna.start - gw_pos
+                                ext_row["Relative_distance"] = rna.start - pos[ix, 1]
 
-                            if rna.start <= gw_pos <= rna.end:
+                            if rna.start <= pos[ix, 1] <= rna.end:
                                 ext_row["SNP_relative_position"] = "in feature"
-                            elif gw_pos < rna.start:
+                            elif pos[ix, 1] < rna.start:
                                 if rna.strand == '+':
                                     ext_row["SNP_relative_position"] = "upstream"
                                 else:
@@ -467,14 +458,14 @@ class MTL:
                             all_peaks_df = pd.concat([all_peaks_df, ext_row.to_frame().transpose()], axis=0,
                                                      ignore_index=True)
             sys.stdout.write("\n")
-        if args.output is not None:
-            args.output = args.output.replace("_", "-")
-            out_path = "{}_gene-hunter_u{:d}_d{:d}_pval{:.3e}_mac{:d}_fdr{:.3f}.txt".format(args.output,
-                                                                                            args.udistance,
-                                                                                            args.ddistance,
-                                                                                            args.pvalue_threshold,
-                                                                                            args.minor_allele_count,
-                                                                                            args.fdr)
+        if output_prefix is not None:
+            output_prefix = output_prefix.replace("_", "-")
+            out_path = "{}_gene-hunter_u{:d}_d{:d}_pval{:.3e}_mac{:d}_fdr{:.3f}.txt".format(output_prefix,
+                                                                                            udistance,
+                                                                                            ddistance,
+                                                                                            pval_thres,
+                                                                                            mac_thres,
+                                                                                            fdr)
             out_path = os.path.join(args.dir, out_path)
             all_peaks_df.to_csv(out_path, sep='\t', header=True, index=False)
         else:

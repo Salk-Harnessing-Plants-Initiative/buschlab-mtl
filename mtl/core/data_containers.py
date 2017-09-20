@@ -29,18 +29,6 @@ class Phenotype(object):
     def transform(self, transform):
         self.__transform = transform
 
-    # def feature_scaling(self):
-
-
-
-        #
-        # p1 = np.array(self.phenotypes[[0]].loc[self.iid]).astype(np.float64)
-        # p1 = np.log((p1 - p1.min()) + 0.1 * np.std(p1))
-        # p2 = np.array(self.phenotypes[[1]].loc[self.iid]).astype(np.float64)
-        # p2 = np.log((p2 - p2.min()) + 0.1 * np.std(p2))
-        # pheno_norm = np.concatenate((p1, p2), axis=1)
-
-
     def read_csv_col(self, phenotype_filepath, colnr, colprefix="", sep='\t'):
         log.info("reading phenotypes: {}, colnr: {}".format(phenotype_filepath, colnr))
 
@@ -70,6 +58,18 @@ class Phenotype(object):
         # self.data.sort_index(inplace=True, key=float);
         return
 
+
+class GWAS_Data(object):
+    def __init__(self):
+        self.data = pd.DataFrame()
+
+    @property
+    def data(self):
+        return self.__data
+
+    @data.setter
+    def data(self, data):
+        self.__data = data
 
 if __name__ == "__main__":
     # log = logging.getLogger()
