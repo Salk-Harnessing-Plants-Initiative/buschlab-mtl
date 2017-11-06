@@ -40,7 +40,7 @@ class MTL:
     def read_phenotype_col(self, phenotype_filepath, colnr, colprefix=""):
         sys.stdout.write("reading phenotypes: {}, col: {}\n".format(phenotype_filepath, colnr))
         with open(phenotype_filepath, 'U') as phenofile:
-            dialect = csv.Sniffer().sniff(phenofile.read(1024))
+            dialect = csv.Sniffer().sniff(phenofile.readline())
             phenofile.seek(0)
 
             reader = csv.reader(phenofile, dialect=dialect)
@@ -341,7 +341,7 @@ class MTL:
         sys.stdout.write("ok.\n")
 
     def do_genehunter(self, hunter_db, pval_thres=1.0e-5, mac_thres=10, udistance=4000, ddistance=4000, feature_depth=1,
-                      output_prefix=None):
+                      fdr_alpha=0.05, output_prefix=None):
         dbextract = GeneAnnotationDbExtractor(hunter_db)
         sys.stdout.write("gene hunter using database: {}\n".format(hunter_db))
 
@@ -359,6 +359,10 @@ class MTL:
                                    "SNP_pos",
                                    "GWAS_pvalue",
                                    "MAC",
+                                   "Bonferroni_{:.3f}_threshold".format(fdr_alpha),
+                                   "BH_{:.3f}_threshold".format(fdr_alpha),
+                                   "BH_FDR_{:.3f}_adjusted".format(fdr_alpha),
+                                   "BH_FDR_{:.3f}_rejected".format(fdr_alpha),
                                    "Gene_start",
                                    "Gene_end",
                                    "Gene_orientation",
@@ -465,7 +469,7 @@ class MTL:
                                                                                             ddistance,
                                                                                             pval_thres,
                                                                                             mac_thres,
-                                                                                            fdr)
+                                                                                            fdr_alpha)
             out_path = os.path.join(args.dir, out_path)
             all_peaks_df.to_csv(out_path, sep='\t', header=True, index=False)
         else:
@@ -521,22 +525,22 @@ def run_by_environment_vars():
 if __name__ == "__main__":
     # run_by_environment_vars()
 
-    workdir = "/data/christian.goeschl/wb-fe_p_zn-data/traits"
+    workdir = "/net/gmi.oeaw.ac.at/busch/lab_new/Christian/mtl-tempstress"
     genotypedir = "/data/gwas/genotypes_for_pygwas/1.0.0/regmap_horton_et_al_2012"
 
     limtmm = MTL(mac_thres=1)
     i = 1
-    j = 1
+    j = 13
     # limtmm.read_phenotype_col(os.path.join(workdir, "bao_Std.txt"), i, colprefix="ctrl{:d}".format(i), sep="\t")
     # limtmm.read_phenotype_col(os.path.join(workdir, "bao_Cd+.txt"), j, colprefix="cd+{:d}".format(j), sep="\t")
-    limtmm.read_phenotype_col(os.path.join(workdir, "Fe_brat_acc_phenotypes_Brat.txt"), i, colprefix="Fe{:d}".format(i))
-    limtmm.read_phenotype_col(os.path.join(workdir, "MS_alltraits.txt"), j, colprefix="MS{:d}".format(j))
+    limtmm.read_phenotype_col(os.path.join(workdir, "29HT_acc_phenotypes_Brat.txt"), i, colprefix="HT{:d}".format(i))
+    limtmm.read_phenotype_col(os.path.join(workdir, "Climond_Bio35_busch_lab_all_accessions.csv"), j, colprefix="Cli{:d}".format(j))
     # limtmm.write_phenotypes(os.path.join(workdir, "used_phenotypes_dbg_{}-{}.csv".format(i, j)))
     limtmm.read_genotypes(os.path.join(genotypedir, "all_chromosomes_binary.hdf5"))
     limtmm.do_qtl()
-    # limtmm.write_results(os.path.join(workdir, "Fe-vs-MS-mtl-run"))
-    limtmm.do_genehunter(
-        "/home/GMI/christian.goeschl/devel/pycharm/GeneHunter/db/At30_20101214_genes_transposons.sqlite")
+    limtmm.write_results(os.path.join(workdir, "ht-mtl-results"))
+    # limtmm.do_genehunter(
+    #     "/home/GMI/christian.goeschl/devel/pycharm/GeneHunter/db/At30_20101214_genes_transposons.sqlite")
 
 
     # for i in range(3, 23):
