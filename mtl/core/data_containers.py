@@ -3,6 +3,8 @@ import os
 import pandas as pd
 import scipy as sp
 import h5py as h5
+import pygwas_modules.mtcorr as mtcorr
+import pygwas_modules.statistics as stats
 
 from core.data_transform import DataTransform
 
@@ -75,15 +77,45 @@ class GwasData(object):
 
     def read_csv(self, path):
         self.__data_h5 = h5.File('memfile.h5', 'w', driver='core', backing_store=False)
+        self.__data_h5.create_group('/pvalues')
+        self.__data_h5.create_group('/quantiles')
         csvdata = pd.read_csv(path, header=0)
 
         #convert chromosome numbers to strings if not already done.
         if csvdata['chromosomes'].dtype == sp.dtype('int'):
             csvdata['chromosomes'] = ["chr{:d}".format(x) for x in csvdata['chromosomes']]
-        all_chrs = sorted(set(csvdata['chromosomes'].values))
-        # for c in all_chrs:
+        chr_names = sorted(set(csvdata['chromosomes'].values))
 
-        pass
+        csvdata['scores'] = -sp.log10(csvdata['pvals'].values)
+
+        for chr_name in chr_names:
+            subdata = csvdata[csvdata['chromosomes'] == chr_name]
+            h5_chr_group = self.__data_h5.create_group('/pvalues/{}'.format(chr_name))
+            for col in subdata.columns:
+                if col == 'chromosomes' or col == 'pvals':
+                    continue
+                h5_chr_group.create_dataset(col, data=subdata[col].values)
+
+        # create attributes
+        h5_pvalues_group = self.__data_h5['/pvalues']
+        h5_pvalues_group.attrs['analysis_method'] = 'N/A'
+        h5_pvalues_group.attrs['bh_thres'] = -sp.log10(mtcorr.get_bhy_thres(csvdata['pvals'].values)['thes_pval'])
+        h5_pvalues_group.attrs['bonferroni_threshold'] = -sp.log10(0.05 / csvdata.shape[0])
+        ks_stats = stats.calc_ks_stats(csvdata['pvals'].values)
+        h5_pvalues_group.attrs['ks_pval'] = ks_stats['p_val']
+        h5_pvalues_group.attrs['ks_stat'] = ks_stats['D']
+        h5_pvalues_group.attrs['max_score'] = csvdata['scores'].values.max()
+        h5_pvalues_group.attrs['med_pval'] = sp.median(csvdata['pvals'].values)
+        h5_pvalues_group.attrs['numberOfSNPs'] = csvdata.shape[0]
+        h5_pvalues_group.attrs['transformation'] = 'raw'
+
+    def write_hdf5(self, path):
+        with h5.File(path, 'w') as real_h5:
+            for item in self.__data_h5:
+                real_h5.copy(self.__data_h5[item], item, expand_refs=True)
+            for attr_name in self.__data_h5.attrs:
+                real_h5.attrs[attr_name] = self.__data_h5.attrs[attr_name]
+
 
 if __name__ == "__main__":
     # log = logging.getLogger()
@@ -95,5 +127,6 @@ if __name__ == "__main__":
     # DataTransform.transform(pheno.data.values, 'most-normal')
     gwas_data = GwasData()
     gwas_data.read_csv('/net/gmi.oeaw.ac.at/busch/lab_new/Christian/mtl-tempstress/10LT-mtl-250k-results/LT_median_Total_length_day001-x-Cli_Bio01_Annu-mac1_any_pvals.csv')
+    gwas_data.write_hdf5('/home/GMI/christian.goeschl/LT_median_Total_length_day001-x-Cli_Bio01_Annu-mac1_any_pvals.hdf5')
     pass
     # pheno.sqr_transform()
